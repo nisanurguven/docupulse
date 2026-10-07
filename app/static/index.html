@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DocuPulse AI - Workspace</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+  
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-950/60 backdrop-blur px-6 py-4 flex justify-between items-center">
+    <div class="flex items-center gap-3">
+      <div class="h-9 w-9 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-lg text-white shadow-lg shadow-indigo-500/20">D</div>
+      <div>
+        <h1 class="text-lg font-semibold tracking-tight">DocuPulse AI</h1>
+        <p class="text-xs text-slate-400">Enterprise Hybrid RAG Platform</p>
+      </div>
+    </div>
+    <div id="authStatus" class="text-xs text-slate-400">Not Authenticated</div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 flex max-w-7xl w-full mx-auto p-6 gap-6 overflow-hidden">
+    
+    <!-- Left Sidebar: Auth & Document Upload -->
+    <section class="w-80 flex flex-col gap-4">
+      
+      <!-- Login Card -->
+      <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl shadow-sm">
+        <h2 class="text-sm font-semibold mb-3 text-slate-200">1. Authentication</h2>
+        <div class="space-y-2">
+          <input id="emailInput" type="text" placeholder="Email" value="nisanurguven" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none" />
+          <input id="passwordInput" type="password" placeholder="Password" value="123" class="w-full bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-xs focus:ring-1 focus:ring-indigo-500 outline-none" />
+          <button onclick="handleLogin()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-1.5 rounded text-xs transition">Connect Session</button>
+        </div>
+      </div>
+
+      <!-- Upload Card -->
+      <div class="bg-slate-800/60 border border-slate-700/60 p-4 rounded-xl shadow-sm flex flex-col gap-3">
+        <h2 class="text-sm font-semibold text-slate-200">2. Ingest Document</h2>
+        <input id="fileInput" type="file" accept=".pdf" class="text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:bg-slate-700 file:text-slate-200 hover:file:bg-slate-600 cursor-pointer" />
+        <button onclick="handleUpload()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium py-1.5 rounded text-xs transition">Upload & Index Vector</button>
+        <div id="uploadStatus" class="text-[11px] text-slate-400"></div>
+      </div>
+
+      <!-- Citations Card -->
+      <div class="bg-slate-800/40 border border-slate-700/40 p-4 rounded-xl flex-1 overflow-y-auto">
+        <h2 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Verified Citations</h2>
+        <div id="citationsList" class="space-y-2 text-xs text-slate-400">
+          <p class="italic text-[11px]">Citations will appear when answering queries...</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Right Chat Area -->
+    <section class="flex-1 bg-slate-800/60 border border-slate-700/60 rounded-xl flex flex-col shadow-sm overflow-hidden">
+      
+      <!-- Messages List -->
+      <div id="chatMessages" class="flex-1 p-5 overflow-y-auto space-y-4">
+        <div class="bg-slate-900/60 border border-slate-700/40 rounded-lg p-3 max-w-xl text-xs text-slate-300">
+          👋 Welcome to DocuPulse. Connect your session, upload a document, and ask questions with live streaming and verified page citations.
+        </div>
+      </div>
+
+      <!-- Input Form -->
+      <form onsubmit="handleSendQuery(event)" class="p-4 border-t border-slate-700/60 bg-slate-900/40 flex gap-2">
+        <input id="queryInput" type="text" placeholder="Ask anything about the ingested documents..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-xs focus:ring-1 focus:ring-indigo-500 outline-none text-slate-100" />
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-lg text-xs font-medium text-white transition flex items-center gap-1.5">
+          <span>Send</span>
+        </button>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    let token = "";
+
+    async function handleLogin() {
+      const email = document.getElementById("emailInput").value;
+      const pass = document.getElementById("passwordInput").value;
+      const formData = new URLSearchParams();
+      formData.append("username", email);
+      formData.append("password", pass);
+
+      const res = await fetch("/auth/login", { method: "POST", body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        token = data.access_token;
+        document.getElementById("authStatus").innerHTML = `<span class="text-emerald-400">● Connected (${email})</span>`;
+      } else {
+        alert("Authentication failed! Verify credentials.");
+      }
+    }
+
+    async function handleUpload() {
+      if (!token) return alert("Please connect session first!");
+      const file = document.getElementById("fileInput").files[0];
+      if (!file) return alert("Select a PDF first.");
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      document.getElementById("uploadStatus").innerText = "Indexing into ChromaDB...";
+      const res = await fetch("/documents/upload", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}` },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        document.getElementById("uploadStatus").innerHTML = `<span class="text-emerald-400">Indexed ${data.total_chunks} chunks successfully!</span>`;
+      } else {
+        document.getElementById("uploadStatus").innerText = "Upload failed.";
+      }
+    }
+
+    async function handleSendQuery(e) {
+      e.preventDefault();
+      if (!token) return alert("Please authenticate first!");
+      const input = document.getElementById("queryInput");
+      const query = input.value.trim();
+      if (!query) return;
+
+      input.value = "";
+      const chat = document.getElementById("chatMessages");
+      
+      // User message
+      chat.innerHTML += `<div class="flex justify-end"><div class="bg-indigo-600 text-white rounded-lg p-3 max-w-xl text-xs">${query}</div></div>`;
+      
+      // Assistant placeholder
+      const assistantId = "msg-" + Date.now();
+      chat.innerHTML += `<div class="flex justify-start"><div id="${assistantId}" class="bg-slate-900 border border-slate-700/60 rounded-lg p-3 max-w-xl text-xs text-slate-200 leading-relaxed whitespace-pre-wrap"></div></div>`;
+      chat.scrollTop = chat.scrollHeight;
+
+      const assistantDiv = document.getElementById(assistantId);
+      const citationsList = document.getElementById("citationsList");
+
+      // SSE Stream Fetch
+      const response = await fetch("/documents/query-stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ query: query })
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop();
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = JSON.parse(line.replace("data: ", ""));
+            if (data.event === "citations") {
+              citationsList.innerHTML = data.citations.map(c => 
+                `<div class="bg-slate-900/80 border border-slate-700/60 rounded p-2 text-[11px] text-slate-300">
+                  📄 <strong>${c.filename}</strong> — Page ${c.page}
+                </div>`
+              ).join("");
+            } else if (data.event === "token") {
+              assistantDiv.innerText += data.text;
+              chat.scrollTop = chat.scrollHeight;
+            }
+          }
+        }
+      }
+    }
+  </script>
+</body>
+</html>
